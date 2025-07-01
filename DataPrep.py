@@ -28,11 +28,21 @@ def get_stock_data(target_ticker, related_tickers, start_date='2020-01-01'):
         raise ValueError(f"No data found for {target_ticker}. Please check the ticker symbol and date range.")
     
     # Get related tickers (limit to 9)
-    for i, ticker in enumerate(related_tickers[:9], 1):
+    for i, ticker in enumerate(related_tickers[:12], 1):
         try:
-            ticker_data = yf.download(ticker, start=start_date)['Close']
-            if isinstance(ticker_data, pd.Series) and not ticker_data.empty:
-                df[f'x{i}'] = ticker_data.reindex(df.index, method='ffill')
+            ticker_data = yf.download(ticker, start=start_date)["Close"]
+            print(f"✅ Data for {ticker} fetched: {ticker_data.shape}")
+            print(ticker_data.head())
+            # Handle DataFrame or Series, and check for all-NaN
+            if isinstance(ticker_data, pd.DataFrame):
+                if 'Close' in ticker_data.columns:
+                    series = ticker_data['Close']
+                else:
+                    series = ticker_data.iloc[:, 0]
+            else:
+                series = ticker_data
+            if isinstance(series, pd.Series) and not series.empty and not series.isna().all():
+                df[f'x{i}'] = series.reindex(df.index, method='ffill')
             else:
                 print(f"❌ No data for {ticker}")
         except Exception as e:
@@ -40,59 +50,56 @@ def get_stock_data(target_ticker, related_tickers, start_date='2020-01-01'):
     
     df = df.dropna()
     print(f"✅ Stock data ready: {df.shape}")
+    print(df.head())
+    print(df.tail())
     return df
 
 # PART 2: Sentiment Analysis (Minimized)
 from textblob import TextBlob
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+import feedparser
+from dateutil import parser as date_parser
+import urllib.parse
 
 def get_sentiment_data(ticker, start_date='2020-01-01', end_date=None):
-    """Generate sentiment analysis table"""
-    print("🎭 Generating sentiment data...")
-    
+    """Generate sentiment analysis table using Google News headlines"""
+    print("🎭 Generating sentiment data from Google News...")
     end_date = end_date or datetime.now().strftime('%Y-%m-%d')
     dates = pd.date_range(start=start_date, end=end_date, freq='D')
-    
-    # Sample headlines (in real use, load from news API or CSV)
-    sample_headlines = [
-        f"{ticker} stock rises on strong earnings",
-        f"{ticker} faces market challenges", 
-        f"Analysts bullish on {ticker} outlook",
-        f"{ticker} reports mixed quarterly results",
-        f"Market volatility affects {ticker} trading"
-    ]
-    
-    # Generate sentiment scores
     analyzer = SentimentIntensityAnalyzer()
     sentiment_data = []
-    
-    np.random.seed(42)
+    # Fetch Google News RSS feed for the ticker
+    query = f"{ticker} stock"
+    encoded_query = urllib.parse.quote_plus(query)
+    url = f"https://news.google.com/rss/search?q={encoded_query}&hl=en-US&gl=US&ceid=US:en"
+    feed = feedparser.parse(url)
+    # Build a date->headline mapping (use only the first headline per day)
+    news_by_date = {}
+    for entry in feed.entries:
+        pub_date = date_parser.parse(entry.published).date()
+        if pub_date not in news_by_date:
+            news_by_date[pub_date] = entry.title
     for date in dates:
-        # Random headline selection
-        headline = np.random.choice(sample_headlines)
-        
+        headline = news_by_date.get(date.date(), f"No major news for {ticker} on {date.date()}")
         # TextBlob sentiment
         blob = TextBlob(headline)
         polarity = blob.sentiment.polarity
-        
         # VADER sentiment
         vader_scores = analyzer.polarity_scores(headline)
         compound = vader_scores['compound']
-        
         # Combined sentiment
         combined = (polarity * 0.4 + compound * 0.6)
-        
         sentiment_data.append({
             'Date': date,
             'Polarity': polarity,
             'Compound': compound,
             'Combined_Sentiment': combined
         })
-    
     sentiment_df = pd.DataFrame(sentiment_data)
     sentiment_df.set_index('Date', inplace=True)
-    
     print(f"✅ Sentiment data ready: {sentiment_df.shape}")
+    print(sentiment_df.head())
+    print(sentiment_df.tail())
     return sentiment_df
 
 # PART 3: LSTM Prediction (Minimized)
@@ -109,9 +116,11 @@ def predict_stock_lstm(stock_data, sentiment_data, prediction_days=30, time_step
     
     # Merge stock and sentiment data
     combined_data = pd.merge(stock_data, sentiment_data, left_index=True, right_index=True, how='inner')
+    
     combined_data = combined_data.dropna()
     
     print(f"📊 Combined data shape: {combined_data.shape}")
+    print(combined_data.head())
     
     # Prepare features and target
     feature_cols = [col for col in combined_data.columns if col != 'y']
@@ -162,8 +171,15 @@ def predict_stock_lstm(stock_data, sentiment_data, prediction_days=30, time_step
     y_test_actual = scaler_y.inverse_transform(y_test)
     
     # Calculate accuracy
-    rmse = np.sqrt(np.mean((y_test_actual - y_pred_actual) ** 2))
+    from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+    rmse = np.sqrt(mean_squared_error(y_test_actual, y_pred_actual))
+    mae = mean_absolute_error(y_test_actual, y_pred_actual)
+    r2 = r2_score(y_test_actual, y_pred_actual)
+    mape = np.mean(np.abs((y_test_actual - y_pred_actual) / y_test_actual)) * 100
     print(f"📊 Model RMSE: ${rmse:.2f}")
+    print(f"📊 Model MAE: ${mae:.2f}")
+    print(f"📊 Model R2: {r2:.4f}")
+    print(f"📊 Model MAPE: {mape:.2f}%")
     
     # Predict future
     print(f"🔮 Predicting next {prediction_days} days...")
@@ -201,7 +217,7 @@ def predict_stock_lstm(stock_data, sentiment_data, prediction_days=30, time_step
     print(f"   Price in {prediction_days} days: ${future_price:.2f}")
     print(f"   Expected Change: {change_pct:+.1f}%")
     
-    return results, model, (scaler_X, scaler_y)
+    return results, model, (scaler_X, scaler_y), {'rmse': float(rmse), 'mae': float(mae), 'r2': float(r2), 'mape': float(mape)}
 
 # COMPLETE WORKFLOW FUNCTION
 def run_stock_prediction(target_ticker, related_tickers, prediction_days=30):
@@ -218,21 +234,34 @@ def run_stock_prediction(target_ticker, related_tickers, prediction_days=30):
     sentiment_data = get_sentiment_data(target_ticker, start_date, end_date)
     
     # Step 3: LSTM prediction
-    predictions, model, scalers = predict_stock_lstm(stock_data, sentiment_data, prediction_days)
+    predictions, model, scalers, metrics = predict_stock_lstm(stock_data, sentiment_data, prediction_days)
     
     print("\n🎉 PREDICTION COMPLETE!")
     print("=" * 50)
-    return predictions, stock_data, sentiment_data, model
+    return predictions, stock_data, sentiment_data, model, metrics
 
 # EXAMPLE USAGE
 if __name__ == "__main__":
     # Define parameters
     TARGET = "TSLA"
-    RELATED = ["AAPL", "GOOGL", "AMZN", "MSFT", "NVDA", "META", "NFLX", "AMD", "SPOT"]
+    #RELATED = ["AAPL", "GOOGL", "AMZN", "MSFT", "NVDA", "META", "NFLX", "AMD", "SPOT"]
+    RELATED = [
+    "NIO",   # NIO Inc.
+    "LI",    # Li Auto Inc.
+    "XPEV",  # XPeng Inc.
+    "BYDDY", # BYD Company (OTC)
+    "LCID",  # Lucid Group
+    "RIVN",  # Rivian Automotive
+    "FSR",   # Fisker Inc.
+    "VFS",   # VinFast
+    "CHPT",  # ChargePoint
+    "BLNK",  # Blink Charging
+    "EVGO"   # EVgo Inc.
+]
     DAYS = 30
     
     # Run complete prediction
-    predictions, stock_data, sentiment_data, model = run_stock_prediction(TARGET, RELATED, DAYS)
+    predictions, stock_data, sentiment_data, model, metrics = run_stock_prediction(TARGET, RELATED, DAYS)
     
     # Display results
     print("\n📊 STOCK DATA SAMPLE:")

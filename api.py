@@ -23,7 +23,7 @@ class PredictionRequest(BaseModel):
 
 @app.post("/predict")
 def predict_stock(req: PredictionRequest):
-    predictions, stock_data, sentiment_data, model = DataPrep.run_stock_prediction(
+    predictions, stock_data, sentiment_data, model, metrics = DataPrep.run_stock_prediction(
         req.target_ticker, req.related_tickers, req.prediction_days
     )
     # Prepare response
@@ -36,7 +36,8 @@ def predict_stock(req: PredictionRequest):
         "current_price": current_price,
         "predicted_30d": predicted_30d,
         "change_30d": change_30d,
-        "predictions": preds
+        "predictions": preds,
+        "metrics": metrics
     }
 
 if __name__ == "__main__":

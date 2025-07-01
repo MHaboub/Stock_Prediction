@@ -382,18 +382,23 @@
                 </div>
 
                 <div class="ticker-input">
-                    <h3>Related Stock Tickers (9 required)</h3>
+                    <h3>Related Stock Tickers (12 required)</h3>
                     <div class="ticker-grid">
-                        <input type="text" class="related-ticker" placeholder="AAPL" value="AAPL">
-                        <input type="text" class="related-ticker" placeholder="GOOGL" value="GOOGL">
-                        <input type="text" class="related-ticker" placeholder="AMZN" value="AMZN">
-                        <input type="text" class="related-ticker" placeholder="MSFT" value="MSFT">
-                        <input type="text" class="related-ticker" placeholder="NVDA" value="NVDA">
-                        <input type="text" class="related-ticker" placeholder="META" value="META">
-                        <input type="text" class="related-ticker" placeholder="NFLX" value="NFLX">
-                        <input type="text" class="related-ticker" placeholder="AMD" value="AMD">
-                        <input type="text" class="related-ticker" placeholder="SPOT" value="SPOT">
+                        <input type="text" class="related-ticker" placeholder="TSLA" value="TSLA">
+                        <input type="text" class="related-ticker" placeholder="NIO" value="NIO">
+                        <input type="text" class="related-ticker" placeholder="LI" value="LI">
+                        <input type="text" class="related-ticker" placeholder="XPEV" value="XPEV">
+                        <input type="text" class="related-ticker" placeholder="BYDDY" value="BYDDY">
+                        <input type="text" class="related-ticker" placeholder="LCID" value="LCID">
+                        <input type="text" class="related-ticker" placeholder="RIVN" value="RIVN">
+                        <input type="text" class="related-ticker" placeholder="MBLY" value="MBLY">
+                        <input type="text" class="related-ticker" placeholder="VFS" value="VFS">
+                        <input type="text" class="related-ticker" placeholder="CHPT" value="CHPT">
+                        <input type="text" class="related-ticker" placeholder="BLNK" value="BLNK">
+                        <input type="text" class="related-ticker" placeholder="EVGO" value="EVGO">
                     </div>
+                    <p style="margin-top: 10px; color: #666;">Enter 9 related stock tickers for better prediction accuracy</p>
+
                 </div>
 
                 <button class="predict-btn" onclick="runPrediction()">
@@ -536,12 +541,17 @@
                 const currentPrice = data.current_price;
                 const finalPrice = data.predicted_30d;
                 const changePercent = data.change_30d;
+                const metrics = data.metrics || {};
 
                 // Update UI
                 document.getElementById('currentPrice').textContent = `$${currentPrice.toFixed(2)}`;
                 document.getElementById('predictedPrice').textContent = `$${finalPrice.toFixed(2)}`;
                 document.getElementById('expectedChange').textContent = `${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(2)}%`;
-                document.getElementById('modelAccuracy').textContent = '--'; // Not available from backend
+                document.getElementById('modelAccuracy').textContent = metrics.r2 !== undefined ? `${(metrics.r2 * 100).toFixed(1)}%` : '--';
+                document.getElementById('rmseValue').textContent = metrics.rmse !== undefined ? `$${metrics.rmse.toFixed(2)}` : '--';
+                document.getElementById('maeValue').textContent = metrics.mae !== undefined ? `$${metrics.mae.toFixed(2)}` : '--';
+                document.getElementById('r2Value').textContent = metrics.r2 !== undefined ? metrics.r2.toFixed(4) : '--';
+                document.getElementById('mapeValue').textContent = metrics.mape !== undefined ? `${metrics.mape.toFixed(2)}%` : '--';
 
                 // Hide loading, show results
                 document.querySelector('.loading').style.display = 'none';
@@ -563,7 +573,7 @@
                 }
             }
         }
-        // ...existing code...
+        // ...mock data ...
 
         function simulateMLPipeline(targetTicker, relatedTickers, predictionDays) {
             const stages = [
@@ -655,7 +665,7 @@
                 document.querySelector('.results').style.display = 'block';
             }, 500);
         }
-
+// ... End Mock Data ...
         function updateRecommendation(changePercent) {
             let action, color, text;
             
