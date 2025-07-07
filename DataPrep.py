@@ -28,7 +28,7 @@ def get_stock_data(target_ticker, related_tickers, start_date='2020-01-01'):
         raise ValueError(f"No data found for {target_ticker}. Please check the ticker symbol and date range.")
     
     # Get related tickers (limit to 9)
-    for i, ticker in enumerate(related_tickers[:12], 1):
+    for i, ticker in enumerate(related_tickers[:], 1):
         try:
             ticker_data = yf.download(ticker, start=start_date)["Close"]
             print(f"✅ Data for {ticker} fetched: {ticker_data.shape}")

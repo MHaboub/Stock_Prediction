@@ -360,47 +360,46 @@
         <div class="main-card">
             <div class="card-header">
                 <h2>Configure Your Stock Prediction Model</h2>
-                <p>Enter target stock and related tickers for comprehensive analysis</p>
+                <p>Select a category and subcategory to analyze related stocks</p>
             </div>
-            
             <div class="card-body">
                 <div class="input-section">
                     <div class="input-group">
-                        <label for="targetTicker">Target Stock Ticker</label>
-                        <input type="text" id="targetTicker" placeholder="e.g., TSLA" value="TSLA">
+                        <label for="mainCategory">Main Category</label>
+                        <select id="mainCategory" onchange="updateSubcategories()">
+                            <option value="Cars">Cars</option>
+                            <option value="Energy">Energy</option>
+                            <option value="Microchips">Microchips</option>
+                        </select>
                     </div>
-                    
                     <div class="input-group">
-                        <label for="predictionDays">Prediction Days</label>
-                        <select id="predictionDays">
-                            <option value="7">7 Days</option>
-                            <option value="15">15 Days</option>
-                            <option value="30" selected>30 Days</option>
-                            <option value="60">60 Days</option>
+                        <label for="subCategory">Subcategory</label>
+                        <select id="subCategory" onchange="updateTickers()">
+                            <!-- Filled by JS -->
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label for="predictionHorizon">Prediction Horizon (days)</label>
+                        <select id="predictionHorizon">
+                            <option value="7">7</option>
+                            <option value="15">15</option>
+                            <option value="30" selected>30</option>
+                            <option value="60">60</option>
                         </select>
                     </div>
                 </div>
-
                 <div class="ticker-input">
-                    <h3>Related Stock Tickers (12 required)</h3>
-                    <div class="ticker-grid">
-                        <input type="text" class="related-ticker" placeholder="TSLA" value="TSLA">
-                        <input type="text" class="related-ticker" placeholder="NIO" value="NIO">
-                        <input type="text" class="related-ticker" placeholder="LI" value="LI">
-                        <input type="text" class="related-ticker" placeholder="XPEV" value="XPEV">
-                        <input type="text" class="related-ticker" placeholder="BYDDY" value="BYDDY">
-                        <input type="text" class="related-ticker" placeholder="LCID" value="LCID">
-                        <input type="text" class="related-ticker" placeholder="RIVN" value="RIVN">
-                        <input type="text" class="related-ticker" placeholder="MBLY" value="MBLY">
-                        <input type="text" class="related-ticker" placeholder="VFS" value="VFS">
-                        <input type="text" class="related-ticker" placeholder="CHPT" value="CHPT">
-                        <input type="text" class="related-ticker" placeholder="BLNK" value="BLNK">
-                        <input type="text" class="related-ticker" placeholder="EVGO" value="EVGO">
+                    <h3>Tickers in Selected Subcategory</h3>
+                    <div class="input-group">
+                        <label for="targetTicker">Select Ticker to Predict</label>
+                        <select id="targetTicker" onchange="updateRelatedTickers(); showTickerGrid();">
+                            <!-- Filled by JS -->
+                        </select>
                     </div>
-                    <p style="margin-top: 10px; color: #666;">Enter 9 related stock tickers for better prediction accuracy</p>
-
+                    <div class="ticker-grid" id="tickerGrid" style="display:none;">
+                        <!-- Filled by JS -->
+                    </div>
                 </div>
-
                 <button class="predict-btn" onclick="runPrediction()">
                     🚀 Run AI Prediction
                 </button>
@@ -497,23 +496,113 @@
     <script>
         let predictionChart = null;
 
+        const categoryData = {
+    "Cars": {
+        "Electric Cars": ["TSLA", "NIO", "LCID", "RIVN", "XPEV"],
+        "Classic Cars": ["F", "GM", "TM", "HMC", "STLA"]
+    },
+    "Energy": {
+        "Petrol & Gas": ["XOM", "CVX", "BP", "RDS.A", "TOT"],
+        "Batteries": ["ALB", "LTHM", "QS", "ENS", "FREY"]
+    },
+    "Microchips": {
+        "For car technologies": ["NVDA", "INTC", "AMD", "TXN", "ON"]
+    }
+};
+
+const subcategories_tickers = {
+    "Electric Cars": ["TSLA", "NIO", "LCID", "RIVN", "XPEV"],
+    "Classic Cars": ["F", "GM", "TM", "HMC", "STLA"],
+    "Petrol & Gas": ["XOM", "CVX", "BP", "RDS.A", "TOT"],
+    "Batteries": ["ALB", "QS", "ENS", "SLDP", "PLL"], // LTHM & FREY replaced
+    "Microchips": ["NVDA", "INTC", "AMD", "TXN", "ON"]
+};
+
+const related_tickers = {
+    "Electric Cars": subcategories_tickers["Classic Cars"].concat(subcategories_tickers["Batteries"], subcategories_tickers["Microchips"]),
+    "Classic Cars": subcategories_tickers["Electric Cars"].concat(subcategories_tickers["Petrol & Gas"]),
+    "Petrol & Gas": subcategories_tickers["Classic Cars"],
+    "Batteries": subcategories_tickers["Electric Cars"].concat(subcategories_tickers["Microchips"]),
+    "Microchips": subcategories_tickers["Electric Cars"].concat(subcategories_tickers["Batteries"])
+};
+
+        function updateSubcategories() {
+            const mainCategory = document.getElementById('mainCategory').value;
+            const subCategorySelect = document.getElementById('subCategory');
+            subCategorySelect.innerHTML = '';
+            const subcats = Object.keys(categoryData[mainCategory]);
+            subcats.forEach(sub => {
+                const opt = document.createElement('option');
+                opt.value = sub;
+                opt.textContent = sub;
+                subCategorySelect.appendChild(opt);
+            });
+            updateTickers();
+        }
+
+        function updateTickers() {
+            const mainCategory = document.getElementById('mainCategory').value;
+            const subCategory = document.getElementById('subCategory').value;
+            const tickers = categoryData[mainCategory][subCategory];
+            const grid = document.getElementById('tickerGrid');
+            grid.innerHTML = '';
+            // Fill the target ticker dropdown
+            const targetSelect = document.getElementById('targetTicker');
+            targetSelect.innerHTML = '';
+            tickers.forEach(ticker => {
+                const opt = document.createElement('option');
+                opt.value = ticker;
+                opt.textContent = ticker;
+                targetSelect.appendChild(opt);
+            });
+            // Hide the grid initially
+            grid.style.display = 'none';
+        }
+
+        function updateRelatedTickers() {
+            // This function is a placeholder for future logic if needed
+        }
+
+        function showTickerGrid() {
+            const grid = document.getElementById('tickerGrid');
+            const mainCategory = document.getElementById('mainCategory').value;
+            const subCategory = document.getElementById('subCategory').value;
+            const tickers = categoryData[mainCategory][subCategory];
+            grid.innerHTML = '';
+            tickers.forEach(ticker => {
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.className = 'related-ticker';
+                input.value = ticker;
+                input.readOnly = true;
+                grid.appendChild(input);
+            });
+            grid.style.display = 'grid';
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            updateSubcategories();
+        });
+
         // --- REPLACE THIS FUNCTION TO CALL THE BACKEND ---
         async function runPrediction() {
-            const targetTicker = document.getElementById('targetTicker').value.toUpperCase();
-            const predictionDays = parseInt(document.getElementById('predictionDays').value);
-            const relatedTickers = Array.from(document.querySelectorAll('.related-ticker'))
-                .map(input => input.value.toUpperCase())
-                .filter(ticker => ticker.length > 0);
-
-            if (!targetTicker) {
-                alert('Please enter a target ticker symbol');
-                return;
+            const mainCategory = document.getElementById('mainCategory').value;
+            const subCategory = document.getElementById('subCategory').value;
+            const tickers = subcategories_tickers[subCategory];
+            const targetTicker = document.getElementById('targetTicker').value;
+            const predictionDays = parseInt(document.getElementById('predictionHorizon').value);
+            // Use new related_tickers logic
+            let relatedTickers = related_tickers[subCategory] ? [...related_tickers[subCategory]] : [];
+            // Add all tickers from the same subcategory as each related subcategory
+            let allRelated = new Set(relatedTickers);
+            for (const relSub of Object.keys(subcategories_tickers)) {
+                if (relatedTickers.some(t => subcategories_tickers[relSub].includes(t))) {
+                    subcategories_tickers[relSub].forEach(t => allRelated.add(t));
+                }
             }
-
-            if (relatedTickers.length < 9) {
-                alert('Please enter all 9 related ticker symbols');
-                return;
-            }
+            // Add the target ticker if not present
+            allRelated.add(targetTicker);
+            relatedTickers = Array.from(allRelated);
 
             document.querySelector('.results').style.display = 'none';
             document.querySelector('.loading').style.display = 'block';
@@ -529,7 +618,8 @@
                     body: JSON.stringify({
                         target_ticker: targetTicker,
                         related_tickers: relatedTickers,
-                        prediction_days: predictionDays
+                        prediction_days: predictionDays,
+                        connections: [] // Not used anymore
                     })
                 });
                 if (!response.ok) throw new Error('Backend error');
